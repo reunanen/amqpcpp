@@ -202,7 +202,7 @@ class AMQPQueue : public AMQPBase  {
 		void Get(short param);
 
 		void Consume();
-		void Consume(short param);
+		void Consume(short param, uint64_t timeout_ms = std::numeric_limits<uint64_t>::max()); // the default is to wait forever
 
 		void Cancel(amqp_bytes_t consumer_tag);
 		void Cancel(std::string consumer_tag);
@@ -227,6 +227,7 @@ class AMQPQueue : public AMQPBase  {
 		void addEvent( AMQPEvents_e eventType, int (*event)(AMQPMessage*) );
 #if __cplusplus > 199711L || (defined(_MSC_VER) && _MSC_VER >= 1800) // C++11 or greater
                 void addEvent( AMQPEvents_e eventType, std::function<int(AMQPMessage*)>& event );
+				void removeEvent( AMQPEvents_e eventType );
 #endif
 		virtual ~AMQPQueue();
 		
@@ -238,7 +239,7 @@ class AMQPQueue : public AMQPBase  {
 		void sendBindCommand(const char * exchange, const char * key);
 		void sendUnBindCommand(const char * exchange, const char * key);
 		void sendGetCommand();
-		void sendConsumeCommand();
+		void sendConsumeCommand(uint64_t timeout_ms = std::numeric_limits<uint64_t>::max());
 		void sendCancelCommand();
 		void sendAckCommand();
 		void sendRejectCommand(bool requeue);

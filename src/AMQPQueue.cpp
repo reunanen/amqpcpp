@@ -10,7 +10,15 @@
 #include <algorithm> // std::transform
 #include <limits>
 #include <deque>
+#include <chrono>
 #include <assert.h>
+
+#if defined (_WIN32) || defined (__WIN32__) || defined (WIN32)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <WinSock2.h>
+#endif
 
 using namespace std;
 
@@ -392,6 +400,15 @@ void AMQPQueue::addEvent( AMQPEvents_e eventType, std::function<int(AMQPMessage*
 		throw AMQPException("the event already added");
 	events[eventType] = event;
 }
+
+void AMQPQueue::removeEvent( AMQPEvents_e eventType )
+{
+	const auto i = events.find(eventType);
+	if (i == events.end())
+		throw AMQPException("event not added");
+	events.erase(i);
+}
+
 #endif
 
 void AMQPQueue::Consume() {
@@ -399,16 +416,16 @@ void AMQPQueue::Consume() {
 	sendConsumeCommand();
 }
 
-void AMQPQueue::Consume(short parms) {
+void AMQPQueue::Consume(short parms, uint64_t timeout_ms) {
 	this->parms=parms;
-	sendConsumeCommand();
+	sendConsumeCommand(timeout_ms);
 }
 
 void AMQPQueue::setConsumerTag(string consumer_tag) {
 	this->consumer_tag = consumer_tag;
 }
 
-void AMQPQueue::sendConsumeCommand() {
+void AMQPQueue::sendConsumeCommand(uint64_t timeout_ms) {
 //	amqp_basic_consume_ok_t *consume_ok;
 	amqp_bytes_t queueByte = amqp_cstring_bytes(name.c_str());
 
@@ -467,9 +484,39 @@ void AMQPQueue::sendConsumeCommand() {
 	size_t body_received;
 	size_t body_target;
 
+	const auto t0 = std::chrono::steady_clock::now();
+
 	while(1) {
 		amqp_maybe_release_buffers(*cnn);
-		int result = amqp_simple_wait_frame(*cnn, &frame);
+
+		int result = [&] {
+			if (timeout_ms == std::numeric_limits<uint64_t>::max()) {
+				return amqp_simple_wait_frame(*cnn, &frame);
+			}
+
+			const auto t1 = t0 + std::chrono::milliseconds(timeout_ms);
+			const auto now = std::chrono::steady_clock::now();
+
+			struct timeval timeout;
+
+			if (t1 > now) {
+				const auto remaining = t1 - now;
+				const auto remaining_us = std::chrono::duration_cast<std::chrono::microseconds>(remaining).count();
+				timeout.tv_sec  = remaining_us / 1'000'000;
+				timeout.tv_usec = remaining_us % 1'000'000;
+			}
+			else {
+				timeout.tv_sec  = 0;
+				timeout.tv_usec = 0;
+			}
+
+			return amqp_simple_wait_frame_noblock(*cnn, &frame, &timeout);
+		}();
+
+		if (result == AMQP_STATUS_TIMEOUT) {
+			return;
+		}
+
 		//modified by chenyujian 20120731
 		//if (result <= 0) return;
 		//according to definition of the amqp_simple_wait_frame
