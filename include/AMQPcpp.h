@@ -115,7 +115,7 @@ class AMQPMessage {
 		void addHeader(std::string name, uint64_t * value);
 		void addHeader(std::string name, uint8_t * value);
 		void addHeader(amqp_bytes_t * name, amqp_bytes_t * value);
-		std::string getHeader(std::string name);
+		std::string getHeader(std::string name) const;
 
 		void setConsumerTag( amqp_bytes_t consumer_tag);
 		void setConsumerTag( std::string consumer_tag);

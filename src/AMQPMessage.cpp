@@ -129,11 +129,12 @@ void AMQPMessage::addHeader(amqp_bytes_t * name, amqp_bytes_t * value) {
 	//headers.insert(pair<string, string>(sname, svalue));
 }
 
-string AMQPMessage::getHeader(string name) {
-	if (headers.find(name) == headers.end())
+string AMQPMessage::getHeader(string name) const {
+	const auto i = headers.find(name);
+	if (i == headers.end())
 		return "";
 	else
-		return headers[name];
+		return i->second;
 }
 
 AMQPQueue * AMQPMessage::getQueue() {
