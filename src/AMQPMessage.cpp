@@ -129,6 +129,32 @@ void AMQPMessage::addHeader(amqp_bytes_t * name, amqp_bytes_t * value) {
 	//headers.insert(pair<string, string>(sname, svalue));
 }
 
+void AMQPMessage::addHeader(const amqp_table_entry_t* entry)
+{
+	string sname;
+	sname.assign((const char*)entry->key.bytes, entry->key.len);
+	headers[sname] = [](const amqp_field_value_t* value) {
+		switch (value->kind) {
+		case AMQP_FIELD_KIND_BOOLEAN: return std::to_string(value->value.boolean);
+		case AMQP_FIELD_KIND_I8:  return std::to_string(value->value.i8);
+		case AMQP_FIELD_KIND_U8:  return std::to_string(value->value.u8);
+		case AMQP_FIELD_KIND_I16: return std::to_string(value->value.i16);
+		case AMQP_FIELD_KIND_U16: return std::to_string(value->value.u16);
+		case AMQP_FIELD_KIND_I32: return std::to_string(value->value.i32);
+		case AMQP_FIELD_KIND_U32: return std::to_string(value->value.u32);
+		case AMQP_FIELD_KIND_I64: return std::to_string(value->value.i64);
+		case AMQP_FIELD_KIND_U64: return std::to_string(value->value.u64);
+		case AMQP_FIELD_KIND_UTF8: {
+			string svalue;
+			svalue.assign((const char*) value->value.bytes.bytes, value->value.bytes.len);
+			return svalue;
+		}
+		default:
+			throw std::runtime_error("Unexpected kind: " + std::to_string(value->kind));
+		}
+	}(&entry->value);
+}
+
 string AMQPMessage::getHeader(string name) const {
 	const auto i = headers.find(name);
 	if (i == headers.end())

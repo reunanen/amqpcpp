@@ -587,9 +587,8 @@ void AMQPQueue::setHeaders(amqp_basic_properties_t * p) {
 		int max = (p->headers).num_entries;
 		int i = 0;
 		for (i = 0; i < max; i++) {
-			amqp_bytes_t keyBytes = (p->headers).entries[i].key;
-			amqp_bytes_t valueBytes = (p->headers).entries[i].value.value.bytes;
-			pmessage->addHeader(&keyBytes, &valueBytes);
+			const auto& entry = (p->headers).entries[i];
+			pmessage->addHeader(&entry);
 		}
 	}
 
