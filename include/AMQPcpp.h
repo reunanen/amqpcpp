@@ -175,6 +175,7 @@ class AMQPQueue : public AMQPBase  {
 		std::string consumer_tag;
 		uint64_t delivery_tag;
 		uint32_t count;
+		bool consuming;
 	public:
 		AMQPQueue(amqp_connection_state_t * cnn, int channelNum);
 		AMQPQueue(amqp_connection_state_t * cnn, int channelNum, std::string name);
@@ -240,6 +241,8 @@ class AMQPQueue : public AMQPBase  {
 		void sendUnBindCommand(const char * exchange, const char * key);
 		void sendGetCommand();
 		void sendConsumeCommand();
+		bool registerConsumer();
+		void receiveDeliveries();
 		void sendCancelCommand();
 		void sendAckCommand();
 		void sendRejectCommand(bool requeue);
