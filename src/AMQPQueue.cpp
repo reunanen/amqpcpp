@@ -21,6 +21,7 @@ AMQPQueue::AMQPQueue(amqp_connection_state_t * cnn, int channelNum) {
 	consumer_tag.bytes=NULL;
 	consumer_tag.len=0;
 	delivery_tag =0;
+	consuming = false;
 	openChannel();
 }
 
@@ -32,6 +33,7 @@ AMQPQueue::AMQPQueue(amqp_connection_state_t * cnn, int channelNum, string name)
 	consumer_tag.bytes=NULL;
 	consumer_tag.len=0;
 	delivery_tag =0;
+	consuming = false;
 	openChannel();
 }
 
@@ -424,6 +426,17 @@ void AMQPQueue::setConsumerTag(string consumer_tag) {
 }
 
 void AMQPQueue::sendConsumeCommand() {
+	// The consumer outlives each Consume() call, so register it only once instead of piling them up on the server
+	if (!consuming) {
+		if (!registerConsumer())
+			return;
+		consuming = true;
+	}
+
+	receiveDeliveries();
+}
+
+bool AMQPQueue::registerConsumer() {
 //	amqp_basic_consume_ok_t *consume_ok;
 	amqp_bytes_t queueByte = amqp_cstring_bytes(name.c_str());
 
@@ -468,12 +481,16 @@ void AMQPQueue::sendConsumeCommand() {
 
 		throw AMQPException(error_message);
 	} else if (res.reply.id == AMQP_BASIC_CANCEL_OK_METHOD) {
-		return;//cancel ok
+		return false;//cancel ok
 	}
 //		else if (res.reply.id == AMQP_BASIC_CONSUME_OK_METHOD) {
 //		consume_ok = (amqp_basic_consume_ok_t*) res.reply.decoded;
 //		//printf("****** consume Ok c_tag=%s", consume_ok->consumer_tag.bytes );
 //	}
+	return true;
+}
+
+void AMQPQueue::receiveDeliveries() {
 	pmessage = std::make_unique<AMQPMessage>(this);
 
 	amqp_frame_t frame;
@@ -502,6 +519,7 @@ void AMQPQueue::sendConsumeCommand() {
 
 		if (frame.payload.method.id == AMQP_BASIC_CANCEL_OK_METHOD){
 			//cout << "CANCEL OK method.id="<< frame.payload.method.id << endl;
+			consuming = false;
 			if ( events.find(AMQP_CANCEL) != events.end() ) {
 #if __cplusplus > 199711L || (defined(_MSC_VER) && _MSC_VER >= 1800) // C++11 or greater
 				events[AMQP_CANCEL](pmessage.get());
@@ -670,6 +688,9 @@ void AMQPQueue::sendCancelCommand(){
 		s.nowait=( AMQP_NOWAIT & parms ) ? 1:0;
 
 	amqp_send_method(*cnn, channelNum, AMQP_BASIC_CANCEL_METHOD, &s);
+
+	if (s.nowait)
+		consuming = false; // no cancel-ok will arrive to clear it
 }
 
 amqp_bytes_t AMQPQueue::getConsumerTag() {
